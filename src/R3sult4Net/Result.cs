@@ -14,14 +14,14 @@ public class Result : BaseResult
 
 public class Result<T> : BaseResult where T : class
 {
-    public T? Value { get; private set; }
-    protected Result(bool isSuccess, T? value, Error? error = null) : base(isSuccess, error)
+    public T Value { get; private set; }
+    protected Result(bool isSuccess, T value, Error? error = null) : base(isSuccess, error)
     {
         this.Value = value;
     }
 
     public static Result<T> Success(T value) => new (true, value);
-    public static Result<T> Failure(Error error) => new (false, null, error);
+    public static Result<T> Failure(Error error) => new (false, null!, error);
     
     public static implicit operator Result<T>(T value) => Success(value);
     public static implicit operator Result<T>(Error error) => Failure(error);
