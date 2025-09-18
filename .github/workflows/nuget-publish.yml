@@ -43,10 +43,28 @@ jobs:
       - name: Test
         run: dotnet test --no-build -c ${{ env.CONFIGURATION }} --verbosity normal -l "console;verbosity=detailed"
 
-      - name: Pack
-        run: dotnet pack ./src/R3sult4Net/R3sult4Net.csproj --configuration Release --no-build --output ./nupkg
+      - name: Pack (no tag)
+        if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+        run: |
+          dotnet pack "${{ env.PROJECT_PATH }}" \
+            --configuration "${{ env.CONFIGURATION }}" \
+            --no-build \
+            --output ./nupkg
+
+      - name: Pack (tagged release)
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          # Extract version from tag (strip leading 'v')
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Packing version $VERSION from tag $GITHUB_REF_NAME"
+          dotnet pack "${{ env.PROJECT_PATH }}" \
+            --configuration "${{ env.CONFIGURATION }}" \
+            --no-build \
+            /p:PackageVersion="$VERSION" \
+            --output ./nupkg
 
       - name: Push NuGet Package
+        if: ${{ startsWith(github.ref, 'refs/tags/v') }}
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
         run: dotnet nuget push ./nupkg/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
