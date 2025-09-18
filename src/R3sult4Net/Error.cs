@@ -1,26 +1,17 @@
 namespace R3sult4Net;
 
-
-/// <summary>
-/// Represents an error in the R3sult4Net library.
-/// </summary>
-/// <param name="Code"></param>
-/// <param name="Message"></param>
-/// <param name="Type"></param>
-/// <param name="Meta"></param>
-public sealed record Error(
-    string Code,
-    string Message,
-    ErrorType Type = ErrorType.Failure,
-    IReadOnlyDictionary<string, object?>? Meta = null)
+public class Error
 {
-    /// <summary>
-    /// Represents a generic error with no specific details.
-    /// </summary>
-    public static Error None => new("None", "No error", ErrorType.Failure);
-    /// <summary>
-    /// Represents a not found error, typically when a requested resource does not exist.
-    /// </summary>
-    /// <returns></returns>
-    public override string ToString() => $"{Code} ({Type}): {Message}";
+    public string Description { get; private set;  }
+    public string Code { get; private set; }
+    public string? Domain { get; set; }
+    public Error[]? InnerErrors { get; private set; }
+
+    public Error(string code, string description, string? domain = null, Error[]? errors = null)
+    {
+        Code = code;
+        Description = description;
+        Domain = domain;
+        InnerErrors = errors ?? [];
+    }
 }

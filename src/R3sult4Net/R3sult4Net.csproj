@@ -2,11 +2,11 @@
   <PropertyGroup>
     <AssemblyName>R3sult4Net</AssemblyName>
     <RootNamespace>R3sult4Net</RootNamespace>
-    <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <PackageId>R3sult4Net</PackageId>
     <Authors>TombSte</Authors>
     <RepositoryType>git</RepositoryType>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageTags>result;error;functional;DDD</PackageTags>
+    <TargetFramework>netstandard2.0</TargetFramework>
   </PropertyGroup>
 </Project>
