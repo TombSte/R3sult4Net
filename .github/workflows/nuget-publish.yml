@@ -3,41 +3,122 @@
 name: Publish NuGet Package
 
 on:
+  workflow_dispatch:
+    inputs:
+      project_path:
+        description: Path to the library .csproj
+        required: false
+        default: src/R3sult4Net/R3sult4Net.csproj
   push:
     branches:
       - main
     tags:
-      - 'v*.*.*'
+      - 'v*'
 
 jobs:
   build-and-publish:
     runs-on: ubuntu-latest
+    env:
+      PROJECT_PATH: ${{ inputs.project_path || 'src/R3sult4Net/R3sult4Net.csproj' }}
+      CONFIGURATION: Release
 
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: List Files
         run: ls -R
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v3
+        uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: 8.x
 
       - name: Restore Dependencies
-        run: dotnet restore ./src/R3sult4Net/R3sult4Net.csproj
+        run: dotnet restore
 
       - name: Build
-        run: dotnet build ./src/R3sult4Net/R3sult4Net.csproj --configuration Release --no-restore
+        run: dotnet build --no-restore -c ${{ env.CONFIGURATION }}
 
       - name: Test
-        run: dotnet test ./src/R3sult4Net.Test/R3sult4Net.Test.csproj --no-build --configuration Release --verbosity normal
+        run: dotnet test --no-build -c ${{ env.CONFIGURATION }} --verbosity normal -l "console;verbosity=detailed"
+
+      - name: Ensure README.md for package
+        shell: bash
+        run: |
+          set -euo pipefail
+          CSProj="${PROJECT_PATH}"
+          PROJ_DIR=$(dirname "$CSProj")
+          if [ ! -f "$PROJ_DIR/README.md" ]; then
+            echo "No README.md found in $PROJ_DIR; creating a minimal one for packing."
+            cat > "$PROJ_DIR/README.md" << 'EOF'
+            # R3sult4Net
+            Lightweight Result pattern utilities for .NET.
+            EOF
+          fi
+
+      - name: Read PackageId and Version
+        id: meta
+        shell: bash
+        run: |
+          set -euo pipefail
+          CSProj="${PROJECT_PATH}"
+          if [ ! -f "$CSProj" ]; then
+            echo "Project file not found: $CSProj" >&2
+            exit 1
+          fi
+          PACKAGE_ID=$(sed -n 's:.*<PackageId>\(.*\)</PackageId>.*:\1:p' "$CSProj" | head -n1)
+          if [ -z "$PACKAGE_ID" ]; then
+            PACKAGE_ID=$(sed -n 's:.*<AssemblyName>\(.*\)</AssemblyName>.*:\1:p' "$CSProj" | head -n1)
+          fi
+          if [ -z "$PACKAGE_ID" ]; then
+            PACKAGE_ID=$(basename "$CSProj" .csproj)
+          fi
+          VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$CSProj" | head -n1)
+          if [ -z "$VERSION" ]; then
+            echo "Version not found in $CSProj. Please define <Version>." >&2
+            exit 1
+          fi
+          PACKAGE_ID_LC=$(echo "$PACKAGE_ID" | tr '[:upper:]' '[:lower:]')
+          echo "package_id=$PACKAGE_ID" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "package_id_lc=$PACKAGE_ID_LC" >> "$GITHUB_OUTPUT"
+
+      - name: Check if version exists on NuGet
+        id: check
+        shell: bash
+        run: |
+          set -euo pipefail
+          PACKAGE_ID_LC='${{ steps.meta.outputs.package_id_lc }}'
+          VERSION='${{ steps.meta.outputs.version }}'
+          URL="https://api.nuget.org/v3-flatcontainer/${PACKAGE_ID_LC}/${VERSION}/${PACKAGE_ID_LC}.${VERSION}.nupkg"
+          echo "Checking: $URL"
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" -I "$URL" || true)
+          if [ "$STATUS" = "405" ] || [ "$STATUS" = "000" ]; then
+            STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$URL" || true)
+          fi
+          echo "HTTP status: $STATUS"
+          if [ "$STATUS" = "200" ]; then
+            echo "Version ${{ steps.meta.outputs.version }} of ${{ steps.meta.outputs.package_id }} already exists on NuGet. Aborting publish." >&2
+            exit 1
+          fi
 
       - name: Pack
-        run: dotnet pack ./src/R3sult4Net/R3sult4Net.csproj --configuration Release --no-build --output ./nupkg
+        run: dotnet pack "$PROJECT_PATH" -c ${{ env.CONFIGURATION }} -o out --no-build
 
       - name: Push NuGet Package
         env:
           NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
-        run: dotnet nuget push ./nupkg/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: |
+          set -euo pipefail
+          if [ -z "${NUGET_API_KEY:-}" ]; then
+            echo "Missing NUGET_API_KEY secret." >&2
+            exit 1
+          fi
+          dotnet nuget push "out/*.nupkg" \
+            --api-key "$NUGET_API_KEY" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+
+      - name: Summary
+        run: echo "Published ${{ steps.meta.outputs.package_id }} v${{ steps.meta.outputs.version }} to NuGet.org" >> $GITHUB_STEP_SUMMARY
