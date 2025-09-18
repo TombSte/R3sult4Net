@@ -1,0 +1,43 @@
+# .github/workflows/nuget-publish.yml
+
+name: Publish NuGet Package
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build-and-publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+
+      - name: List Files
+        run: ls -R
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore ./src/R3sult4Net/R3sult4Net.csproj
+
+      - name: Build
+        run: dotnet build ./src/R3sult4Net/R3sult4Net.csproj --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test ./src/R3sult4Net.Test/R3sult4Net.Test.csproj --no-build --configuration Release --verbosity normal
+
+      - name: Pack
+        run: dotnet pack ./src/R3sult4Net/R3sult4Net.csproj --configuration Release --no-build --output ./nupkg
+
+      - name: Push NuGet Package
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: dotnet nuget push ./nupkg/*.nupkg --api-key $NUGET_API_KEY --source https://api.nuget.org/v3/index.json --skip-duplicate
