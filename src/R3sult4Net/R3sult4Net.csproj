@@ -10,4 +10,9 @@
     <TargetFramework>netstandard2.0</TargetFramework>
     <Version>0.0.1</Version>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Ensure README is included in the nupkg root -->
+    <None Include="README.md" Pack="true" PackagePath="/" />
+  </ItemGroup>
 </Project>
