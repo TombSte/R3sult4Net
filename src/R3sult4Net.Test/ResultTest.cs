@@ -72,4 +72,23 @@ public class ResultTest
         resultF.Error.Code.Should().Be("code");
         resultF.Error.Description.Should().Be("message");
     }
+
+    [Fact]
+    public void Map_Success()
+    {
+        Result<string> result = "hello";
+        var mapped = Result<string>.Map(result, s => s.ToUpper());
+        mapped.IsSuccess.Should().BeTrue();
+        mapped.Value.Should().Be("HELLO");
+    }
+
+    [Fact]
+    public void Map_Failure()
+    {
+        Result<string> result = new Error("err", "fail");
+        var mapped = Result<string>.Map(result, s => s.ToUpper());
+        mapped.IsFailure.Should().BeTrue();
+        mapped.Error!.Code.Should().Be("err");
+        mapped.Error!.Description.Should().Be("fail");
+    }
 }
